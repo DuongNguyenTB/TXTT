@@ -1,9 +1,12 @@
 import requests
 
-# Cấu hình
-TEACHER_BASE_URL = "http://192.168.50.218:8000/api/v1"
-STUDENT_ID = "MÃ_SINH_VIÊN_CỦA_BẠN" # Yêu cầu viết hoa
-STUDENT_SERVER_URL = "http://<IP_MÁY_CỦA_BẠN>:5000" # Nhớ thay bằng IP LAN thực tế của máy bạn
+# ==========================================
+# CẤU HÌNH HỆ THỐNG (Thay đổi khi vào phòng thi)
+# ==========================================
+# Bắt buộc phải có /v1 ở cuối đường dẫn của Teacher Server
+TEACHER_BASE_URL = "http://192.168.50.218:8000/api/v1" 
+STUDENT_ID = "B21DCCNxxx" # Mã sinh viên viết hoa của bạn
+STUDENT_SERVER_URL = "http://192.168.1.15:5000" # IP mạng LAN máy của bạn
 
 HEADERS = {
     "X-Student-ID": STUDENT_ID,
@@ -11,47 +14,77 @@ HEADERS = {
 }
 
 def register():
-    print(">>> Đang đăng ký với Teacher Server...")
-    res = requests.post(
-        f"{TEACHER_BASE_URL}/competition/register",
-        headers=HEADERS,
-        json={"server_url": STUDENT_SERVER_URL}
-    )
-    print(res.json())
+    """1. Đăng ký địa chỉ Student Server với Teacher Server"""
+    print("\n>>> [POST] Đang đăng ký với Teacher Server...")
+    try:
+        res = requests.post(
+            f"{TEACHER_BASE_URL}/competition/register",
+            headers=HEADERS,
+            json={"server_url": STUDENT_SERVER_URL}
+        )
+        data = res.json()
+        # Slide mới trả về 'message' thay vì 'status'
+        print(f"Lời nhắn: {data.get('message')}")
+        print(f"Sinh viên: {data.get('student_id')} | Server: {data.get('server_url')}")
+    except Exception as e:
+        print(f"Lỗi kết nối: {e}")
 
 def evaluate():
-    print(">>> Bắt đầu quá trình thi (Evaluate)...")
-    res = requests.post(
-        f"{TEACHER_BASE_URL}/competition/evaluate",
-        headers=HEADERS
-    )
-    print(res.json())
+    """2. Kích hoạt quá trình chấm điểm tự động (Bắn tài liệu + 10 câu hỏi)"""
+    print("\n>>> [POST] Bắt đầu quá trình thi (Evaluate)...")
+    try:
+        res = requests.post(
+            f"{TEACHER_BASE_URL}/competition/evaluate",
+            headers=HEADERS
+        )
+        data = res.json()
+        # Slide mới trả về 'message' và 'final_score'
+        print(f"Trạng thái: {data.get('message')}")
+        print(f"Điểm số cuối cùng: {data.get('final_score')}")
+    except Exception as e:
+        print(f"Lỗi kết nối: {e}")
 
 def check_result():
-    print(">>> Kiểm tra kết quả...")
-    res = requests.get(
-        f"{TEACHER_BASE_URL}/competition/result",
-        headers=HEADERS
-    )
-    print(res.json())
+    """3. Kiểm tra tiến độ câu hỏi và điểm số hiện tại khi đang thi"""
+    print("\n>>> [GET] Kiểm tra trạng thái hiện tại...")
+    try:
+        res = requests.get(
+            f"{TEACHER_BASE_URL}/competition/result",
+            headers=HEADERS
+        )
+        data = res.json()
+        print(f"Sinh viên: {data.get('student_id')}")
+        print(f"Trạng thái hệ thống: {data.get('status')}")
+        print(f"Đang ở câu hỏi số: {data.get('current_question')}/10")
+        print(f"Điểm số hiện tại: {data.get('score')}")
+    except Exception as e:
+        print(f"Lỗi kết nối: {e}")
 
 def reset():
-    print(">>> Reset trạng thái thi...")
-    res = requests.post(
-        f"{TEACHER_BASE_URL}/competition/reset",
-        headers=HEADERS
-    )
-    print(res.json())
+    """4. Reset trạng thái thi về ban đầu nếu code gặp sự cố giữa chừng"""
+    print("\n>>> [POST] Yêu cầu reset trạng thái thi...")
+    try:
+        res = requests.post(
+            f"{TEACHER_BASE_URL}/competition/reset",
+            headers=HEADERS
+        )
+        data = res.json()
+        # Slide mới bổ sung thêm trường 'score' ở hàm reset
+        print(f"Trạng thái: {data.get('status')}")
+        print(f"Lời nhắn: {data.get('message')}")
+        print(f"Điểm số lưu lại trước đó: {data.get('score')}")
+    except Exception as e:
+        print(f"Lỗi kết nối: {e}")
 
 if __name__ == "__main__":
-    # Bỏ comment hàm bạn muốn chạy
+    # Trong phòng thi, bạn cần chạy hàm nào thì bỏ dấu thăng (#) ở hàm đó ra nhé
     
-    # BƯỚC 1: Gọi register 1 lần
+    # Bước đầu tiên: Đăng ký IP máy mình với giảng viên
     register()
     
-    # BƯỚC 2: Gọi evaluate để Teacher Server bắt đầu bắn request vào /upload và /ask
+    # Bước hai: Kích hoạt chấm điểm
     # evaluate()
     
-    # KHI CẦN:
+    # Các hàm bổ trợ dùng khi cần thiết:
     # check_result()
     # reset()
