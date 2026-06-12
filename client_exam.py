@@ -23,22 +23,21 @@ def register():
             json={"server_url": STUDENT_SERVER_URL}
         )
         data = res.json()
-        # Slide mới trả về 'message' thay vì 'status'
         print(f"Lời nhắn: {data.get('message')}")
         print(f"Sinh viên: {data.get('student_id')} | Server: {data.get('server_url')}")
     except Exception as e:
         print(f"Lỗi kết nối: {e}")
 
-def evaluate():
-    """2. Kích hoạt quá trình chấm điểm tự động (Bắn tài liệu + 10 câu hỏi)"""
-    print("\n>>> [POST] Bắt đầu quá trình thi (Evaluate)...")
+def evaluate(document_received=False):
+    """2. Kích hoạt quá trình chấm điểm tự động"""
+    print(f"\n>>> [POST] Bắt đầu thi (document_received={document_received})...")
     try:
         res = requests.post(
             f"{TEACHER_BASE_URL}/competition/evaluate",
-            headers=HEADERS
+            headers=HEADERS,
+            json={"document_received": document_received}
         )
         data = res.json()
-        # Slide mới trả về 'message' và 'final_score'
         print(f"Trạng thái: {data.get('message')}")
         print(f"Điểm số cuối cùng: {data.get('final_score')}")
     except Exception as e:
@@ -55,7 +54,7 @@ def check_result():
         data = res.json()
         print(f"Sinh viên: {data.get('student_id')}")
         print(f"Trạng thái hệ thống: {data.get('status')}")
-        print(f"Đang ở câu hỏi số: {data.get('current_question')}/10")
+        print(f"Đang ở câu hỏi số: {data.get('current_question')}/100") # <-- Đã sửa thành 100
         print(f"Điểm số hiện tại: {data.get('score')}")
     except Exception as e:
         print(f"Lỗi kết nối: {e}")
@@ -69,22 +68,27 @@ def reset():
             headers=HEADERS
         )
         data = res.json()
-        # Slide mới bổ sung thêm trường 'score' ở hàm reset
         print(f"Trạng thái: {data.get('status')}")
         print(f"Lời nhắn: {data.get('message')}")
         print(f"Điểm số lưu lại trước đó: {data.get('score')}")
     except Exception as e:
         print(f"Lỗi kết nối: {e}")
 
+# ==========================================
+# KHU VỰC CHẠY THỰC TẾ
+# ==========================================
 if __name__ == "__main__":
-    # Trong phòng thi, bạn cần chạy hàm nào thì bỏ dấu thăng (#) ở hàm đó ra nhé
-    
-    # Bước đầu tiên: Đăng ký IP máy mình với giảng viên
+    # Bước 1: Đăng ký IP máy mình với giảng viên
     register()
     
-    # Bước hai: Kích hoạt chấm điểm
-    # evaluate()
+    # Bước 2: Nộp bài (Chỉ được nộp tối đa 5 lần)
     
-    # Các hàm bổ trợ dùng khi cần thiết:
+    # --- Lần nộp ĐẦU TIÊN (Để máy chủ gửi tài liệu về cho bạn embed) ---
+    # evaluate(document_received=False) 
+    
+    # --- Lần nộp THỨ 2, 3, 4, 5 (Đã lưu VectorDB local, không cần chờ gửi lại tài liệu) ---
+    # evaluate(document_received=True)
+    
+    # Các hàm bổ trợ (Bỏ comment để dùng khi cần):
     # check_result()
     # reset()

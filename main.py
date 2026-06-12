@@ -3,10 +3,13 @@ from pydantic import BaseModel
 from typing import Optional, List
 from openai import OpenAI
 
-# 1. IMPORT LOGIC TỪ FILE rag_logic.py
-from rag_logic import process_and_store_document, retrieve_context
+# ĐÃ SỬA: Import thêm hàm load_existing_db vào đây
+from rag_logic import process_and_store_document, retrieve_context, load_existing_db
 
 app = FastAPI()
+
+# Gọi hàm này để tự động kiểm tra và nạp VectorDB từ ổ cứng khi server khởi động
+load_existing_db()
 
 # ==========================================
 # CẤU HÌNH API VÀ LLM

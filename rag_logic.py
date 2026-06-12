@@ -1,3 +1,4 @@
+import os  # <-- ĐÃ SỬA: Thêm thư viện os để kiểm tra file
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -6,44 +7,44 @@ from langchain.docstore.document import Document
 # ==========================================
 # CẤU HÌNH OFFLINE EMBEDDING
 # ==========================================
-# LƯU Ý QUAN TRỌNG: Bạn BẮT BUỘC phải tải folder model này về máy trước khi bị ngắt mạng!
-# Bạn có thể dùng script Python đơn giản bằng huggingface_hub để tải model "sentence-transformers/all-MiniLM-L6-v2" về thư mục "./models".
 MODEL_PATH = "./models/all-MiniLM-L6-v2" 
+FAISS_DB_DIR = "./faiss_index"  # <-- ĐÃ SỬA: Khai báo thư mục lưu VectorDB xuống ổ cứng
 
 print("Đang load model embedding offline...")
 try:
     embeddings = HuggingFaceEmbeddings(model_name=MODEL_PATH)
-    print("Load model thành công!")
+    print(" Load model thành công!")
 except Exception as e:
-    print(f"Lỗi load model (Có thể bạn chưa tải model về máy): {e}")
+    print(f" Lỗi load model (Có thể bạn chưa tải model về máy): {e}")
 
 # Biến toàn cục để lưu trữ VectorDB trên RAM
 vector_db = None
 
+def load_existing_db():
+    global vector_db
+    if os.path.exists(FAISS_DB_DIR):
+        # allow_dangerous_deserialization=True là bắt buộc ở các bản Langchain mới khi load local FAISS
+        vector_db = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
+        print(" Đã load VectorDB thành công từ ổ cứng!")
+    else:
+        print(" Chưa có VectorDB trên ổ cứng. Cần nhận tài liệu từ Teacher Server.")
+
 def process_and_store_document(text: str) -> int:
-    """
-    Thực hiện Chunking và lưu vào FAISS VectorDB.
-    """
     global vector_db
     
-    # 1. CHUNKING: Cắt văn bản thành các đoạn nhỏ
-    # chunk_size: Kích thước mỗi đoạn (ký tự). 
-    # chunk_overlap: Số ký tự trùng lặp giữa 2 đoạn liên tiếp để giữ ngữ cảnh.
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=500, 
         chunk_overlap=50,
         separators=["\n\n", "\n", ".", " ", ""]
     )
-    
-    # Cắt text gốc ra thành một list các chuỗi
     chunks_text = text_splitter.split_text(text)
-    
-    # Ép kiểu về dạng Document của Langchain
     documents = [Document(page_content=chunk) for chunk in chunks_text]
     
-    # 2. VECTOR DB: Nhúng (Embed) các chunk và lưu vào FAISS
-    # Mỗi lần /upload gọi, ta sẽ tạo lại DB mới (hoặc bạn có thể dùng vector_db.add_documents nếu muốn cộng dồn)
     vector_db = FAISS.from_documents(documents, embeddings)
+    
+    # THÊM DÒNG NÀY: Lưu thẳng xuống ổ cứng sau khi embed xong
+    vector_db.save_local(FAISS_DB_DIR) 
+    print(" Đã lưu VectorDB xuống ổ cứng an toàn!")
     
     return len(chunks_text)
 
