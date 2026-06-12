@@ -1,31 +1,28 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import Optional, List
+import os
+from typing import Any, List, Optional
+from fastapi import FastAPI, Request
 from openai import OpenAI
+from pydantic import BaseModel, Field
 
-# ĐÃ SỬA: Import thêm hàm load_existing_db vào đây
+# IMPORT LOGIC TU FILE rag_logic.py
 from rag_logic import process_and_store_document, retrieve_context, load_existing_db
 
 app = FastAPI()
 
-# Gọi hàm này để tự động kiểm tra và nạp VectorDB từ ổ cứng khi server khởi động
+# Nap database tu o cung ngay khi khoi dong
 load_existing_db()
 
 # ==========================================
-# CẤU HÌNH API VÀ LLM
+# CAU HINH API VA LLM
 # ==========================================
-STUDENT_ID = "MÃ_SINH_VIÊN_CỦA_BẠN"  # Nhớ đổi mã SV viết hoa
-TEACHER_SERVER_IP = "192.168.50.218" # Kiểm tra lại IP lúc vào thi
+STUDENT_ID = os.getenv("STUDENT_ID", "B21DCCNxxx").strip().upper()
+TEACHER_SERVER_IP = os.getenv("TEACHER_SERVER_IP", "192.168.50.218").strip()
 PROXY_BASE_URL = f"http://{TEACHER_SERVER_IP}:8000/api/v1/proxy"
 
-# Khởi tạo client gọi Proxy LLM
-client = OpenAI(
-    base_url=PROXY_BASE_URL,
-    api_key=STUDENT_ID
-)
+client = OpenAI(base_url=PROXY_BASE_URL, api_key=STUDENT_ID, timeout=45.0)
 
 # ==========================================
-# SCHEMA (Bắt buộc phải khớp với slide)
+# SCHEMA
 # ==========================================
 class UploadRequest(BaseModel):
     doc_id: Optional[str] = None
@@ -41,54 +38,50 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    sources: List[str] = []
+    sources: List[str] = Field(default_factory=list)
+
+# ==========================================
+# HAM BO TRO DE CHONG LOI INPUT
+# ==========================================
+def _extract_text(payload: Any) -> str:
+    if isinstance(payload, str): return payload.strip()
+    if isinstance(payload, dict):
+        return str(payload.get("text", "")).strip()
+    return ""
+
+def _normalize_answer(raw_answer: str) -> str:
+    cleaned = (raw_answer or "").strip().upper()
+    return next((char for char in cleaned if char in {"A", "B", "C", "D"}), "A")
 
 # ==========================================
 # ENDPOINTS
 # ==========================================
 
 @app.post("/upload", response_model=UploadResponse)
-async def upload_document(req: UploadRequest):
-    """
-    Endpoint 1: Nhận tài liệu từ Teacher Server, thực hiện Chunking và lưu vào VectorDB.
-    Thời gian tối đa: 120s
-    """
+async def upload_document(request: Request):
+    """Nhan tai lieu linh hoat de chong loi 422"""
     try:
-        # Gọi hàm xử lý chunking và lưu vào FAISS từ rag_logic.py
-        chunks_created = process_and_store_document(req.text)
+        data = await request.json()
+        doc_id = data.get("doc_id")
+        text = _extract_text(data)
         
-        return UploadResponse(
-            status="success",
-            doc_id=req.doc_id,
-            chunks=chunks_created
-        )
+        chunks_created = process_and_store_document(text, doc_id=doc_id)
+        return UploadResponse(status="success", doc_id=doc_id, chunks=chunks_created)
     except Exception as e:
-        print(f"Lỗi khi upload và xử lý chunk: {e}")
-        return UploadResponse(
-            status="error",
-            doc_id=req.doc_id,
-            chunks=0
-        )
+        print(f"Loi upload: {e}")
+        return UploadResponse(status="error", doc_id=None, chunks=0)
 
 @app.post("/ask", response_model=AskResponse)
 async def ask_question(req: AskRequest):
-    """
-    Endpoint 2: Nhận câu hỏi, RAG và trả về đúng 1 ký tự A/B/C/D.
-    Thời gian tối đa: 60s
-    """
-    # 1. Query VectorDB để lấy Context thực tế từ hàm retrieve_context
+    """Nhan cau hoi, truy xuat ngu canh va tra loi A/B/C/D"""
     retrieved_context, retrieved_sources = retrieve_context(req.question, top_k=3)
     
-    # 2. Tạo Prompt (Giới hạn Proxy LLM khoảng 2048-4096 tokens nên prompt cần gọn gàng)
     system_prompt = (
-        "Bạn là một trợ lý ảo giải trắc nghiệm. "
-        "Dựa vào Context được cung cấp, hãy trả lời câu hỏi của người dùng. "
-        "CHỈ TRẢ VỀ ĐÚNG 1 KÝ TỰ là đáp án đúng: A, B, C, hoặc D. Không giải thích thêm."
+        "Ban la tro ly giai trac nghiem. Dua vao Context, tra loi cau hoi. "
+        "CHI TRA VE DUNG 1 KY TU: A, B, C, hoac D. Khong giai thich."
     )
-    
     user_prompt = f"Context:\n{retrieved_context}\n\nQuestion:\n{req.question}"
     
-    # 3. Gọi LLM qua Proxy
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -98,19 +91,10 @@ async def ask_question(req: AskRequest):
             ],
             temperature=0.1
         )
-        
-        # 4. Tiền xử lý đáp án (Đảm bảo nó chỉ có 1 ký tự A/B/C/D)
-        raw_answer = response.choices[0].message.content.strip().upper()
-        # Lọc ra ký tự A, B, C, D đầu tiên xuất hiện
-        final_answer = next((char for char in raw_answer if char in ['A', 'B', 'C', 'D']), 'A')
-        
+        raw_answer = response.choices[0].message.content or ""
+        final_answer = _normalize_answer(raw_answer)
     except Exception as e:
-        print(f"Lỗi gọi LLM: {e}")
-        final_answer = "A" # Trả về bừa 1 đáp án để tránh rớt request
+        print(f"Loi LLM: {e}")
+        final_answer = "A"
         
-    return AskResponse(
-        answer=final_answer,
-        sources=retrieved_sources
-    )
-
-# Chạy server bằng: uvicorn main:app --host 0.0.0.0 --port 5000
+    return AskResponse(answer=final_answer, sources=retrieved_sources)

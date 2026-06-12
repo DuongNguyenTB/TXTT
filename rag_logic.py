@@ -1,68 +1,99 @@
-import os  # <-- ĐÃ SỬA: Thêm thư viện os để kiểm tra file
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain.docstore.document import Document
+import argparse
+import json
+import os
+from pathlib import Path
+from typing import Any
 
-# ==========================================
-# CẤU HÌNH OFFLINE EMBEDDING
-# ==========================================
-MODEL_PATH = "./models/vietnamese-sbert-base"  # <-- ĐÃ SỬA: Đường dẫn đến model embedding đã tải về máy
-FAISS_DB_DIR = "./faiss_index"  # <-- ĐÃ SỬA: Khai báo thư mục lưu VectorDB xuống ổ cứng
+import requests
 
-print("Đang load model embedding offline...")
-try:
-    embeddings = HuggingFaceEmbeddings(model_name=MODEL_PATH)
-    print(" Load model thành công!")
-except Exception as e:
-    print(f" Lỗi load model (Có thể bạn chưa tải model về máy): {e}")
+# Cau hinh
+TEACHER_SERVER_IP = os.getenv("TEACHER_SERVER_IP", "10.170.45.200").strip()
+TEACHER_BASE_URL = os.getenv(
+    "TEACHER_BASE_URL", f"http://{TEACHER_SERVER_IP}:8000/api/v1"
+).strip()
+STUDENT_ID = os.getenv("STUDENT_ID", "B21DCCN598").strip().upper()
+STUDENT_SERVER_URL = os.getenv("STUDENT_SERVER_URL", "http://10.170.45.74:5000").strip()
+REQUEST_TIMEOUT = float(os.getenv("CLIENT_TIMEOUT", "30"))
 
-# Biến toàn cục để lưu trữ VectorDB trên RAM
-vector_db = None
+HEADERS = {"X-Student-ID": STUDENT_ID, "Content-Type": "application/json"}
+STATE_FILE = Path(
+    os.getenv("CLIENT_STATE_FILE", Path(__file__).resolve().parent / "exam_state.json")
+)
+MAX_SUBMISSIONS = int(os.getenv("MAX_SUBMISSIONS", "5"))
 
-def load_existing_db():
-    global vector_db
-    if os.path.exists(FAISS_DB_DIR):
-        # allow_dangerous_deserialization=True là bắt buộc ở các bản Langchain mới khi load local FAISS
-        vector_db = FAISS.load_local(FAISS_DB_DIR, embeddings, allow_dangerous_deserialization=True)
-        print(" Đã load VectorDB thành công từ ổ cứng!")
-    else:
-        print(" Chưa có VectorDB trên ổ cứng. Cần nhận tài liệu từ Teacher Server.")
+def _load_state() -> dict[str, Any]:
+    if not STATE_FILE.exists():
+        return {"document_received": False, "evaluate_calls": 0}
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {"document_received": False, "evaluate_calls": 0}
+        return {
+            "document_received": bool(data.get("document_received", False)),
+            "evaluate_calls": int(data.get("evaluate_calls", 0)),
+        }
+    except Exception:
+        return {"document_received": False, "evaluate_calls": 0}
 
-def process_and_store_document(text: str) -> int:
-    global vector_db
-    
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500, 
-        chunk_overlap=50,
-        separators=["\n\n", "\n", ".", " ", ""]
-    )
-    chunks_text = text_splitter.split_text(text)
-    documents = [Document(page_content=chunk) for chunk in chunks_text]
-    
-    vector_db = FAISS.from_documents(documents, embeddings)
-    
-    # THÊM DÒNG NÀY: Lưu thẳng xuống ổ cứng sau khi embed xong
-    vector_db.save_local(FAISS_DB_DIR) 
-    print(" Đã lưu VectorDB xuống ổ cứng an toàn!")
-    
-    return len(chunks_text)
+def _save_state(state: dict[str, Any]) -> None:
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-def retrieve_context(question: str, top_k: int = 3) -> tuple[str, list[str]]:
-    """
-    Tìm kiếm k đoạn văn bản có ngữ cảnh gần giống nhất với câu hỏi.
-    """
-    global vector_db
-    if vector_db is None:
-        return "Không có dữ liệu trong VectorDB.", []
+def _reset_state() -> None:
+    _save_state({"document_received": False, "evaluate_calls": 0})
+
+def _print_response(response: requests.Response):
+    print("STATUS:", response.status_code)
+    try:
+        print(response.json())
+    except ValueError:
+        print(response.text)
+
+def _is_success(response: requests.Response) -> bool:
+    payload = response.json() if response.status_code == 200 else {}
+    status_text = str(payload.get("status", "")).lower()
+    return status_text in {"ok", "success", "registered", "done"}
+
+def register():
+    print(">>> [POST] Dang ky Student Server...")
+    url = f"{TEACHER_BASE_URL}/competition/register"
+    res = requests.post(url, headers=HEADERS, json={"server_url": STUDENT_SERVER_URL}, timeout=REQUEST_TIMEOUT)
+    _print_response(res)
+    if _is_success(res):
+        _reset_state()
+        print({"trang_thai": "reset", "ly_do": "dang_ky_thanh_cong"})
+
+def evaluate(document_received_override: bool | None = None):
+    state = _load_state()
+    if int(state.get("evaluate_calls", 0)) >= MAX_SUBMISSIONS:
+        print({"canh_bao": "Da dat gioi han 5 lan nop!"})
     
-    # Tìm kiếm độ tương đồng (Similarity Search)
-    matched_docs = vector_db.similarity_search(question, k=top_k)
+    document_received = document_received_override if document_received_override is not None else state.get("document_received", False)
+    payload = {"document_received": bool(document_received)}
     
-    # Nối các đoạn văn bản tìm được lại với nhau để làm Context cho LLM
-    context_text = "\n---\n".join([doc.page_content for doc in matched_docs])
+    print(f">>> [POST] Bat dau evaluate (document_received={document_received})...")
+    res = requests.post(f"{TEACHER_BASE_URL}/competition/evaluate", headers=HEADERS, json=payload, timeout=REQUEST_TIMEOUT)
+    _print_response(res)
     
-    # (Tùy chọn) Giả lập ID cho source
-    sources = [f"chunk_{i}" for i in range(len(matched_docs))]
-    
-    return context_text, sources
+    if _is_success(res):
+        state["document_received"] = True
+    state["evaluate_calls"] = int(state.get("evaluate_calls", 0)) + 1
+    _save_state(state)
+
+def check_result():
+    print(">>> [GET] Kiem tra ket qua...")
+    res = requests.get(f"{TEACHER_BASE_URL}/competition/result", headers=HEADERS, timeout=REQUEST_TIMEOUT)
+    _print_response(res)
+
+def reset():
+    print(">>> [POST] Reset trang thai thi...")
+    res = requests.post(f"{TEACHER_BASE_URL}/competition/reset", headers=HEADERS, timeout=REQUEST_TIMEOUT)
+    _print_response(res)
+    if _is_success(res):
+        _reset_state()
+
+if __name__ == "__main__":
+    # Su dung: python client_exam.py [action]
+    # actions: register, evaluate, result, reset, full
+    # Vi du nop bai lan 1: python client_exam.py evaluate --document-received false
+    # Vi du nop bai lan 2+: python client_exam.py evaluate --document-received true
+    pass

@@ -3,4 +3,8 @@ uvicorn
 pydantic
 openai
 requests
-# Thêm các thư viện RAG của bạn vào đây (VD: langchain, chromadb, sentence-transformers...)
+sentence-transformers
+faiss-cpu
+numpy
+huggingface_hub
+uv 

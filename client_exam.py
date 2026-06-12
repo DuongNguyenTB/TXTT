@@ -1,12 +1,12 @@
 import requests
 
 # ==========================================
-# CẤU HÌNH HỆ THỐNG (Thay đổi khi vào phòng thi)
+# CAU HINH HE THONG (Thay doi khi vao phong thi)
 # ==========================================
-# Bắt buộc phải có /v1 ở cuối đường dẫn của Teacher Server
+# Bat buoc phai co /v1 o cuoi duong dan cua Teacher Server
 TEACHER_BASE_URL = "http://192.168.50.218:8000/api/v1" 
-STUDENT_ID = "B21DCCNxxx" # Mã sinh viên viết hoa của bạn
-STUDENT_SERVER_URL = "http://192.168.1.15:5000" # IP mạng LAN máy của bạn
+STUDENT_ID = "B21DCCNxxx" # Ma sinh vien viet hoa cua ban
+STUDENT_SERVER_URL = "http://192.168.1.15:5000" # IP mang LAN may cua ban
 
 HEADERS = {
     "X-Student-ID": STUDENT_ID,
@@ -14,8 +14,8 @@ HEADERS = {
 }
 
 def register():
-    """1. Đăng ký địa chỉ Student Server với Teacher Server"""
-    print("\n>>> [POST] Đang đăng ký với Teacher Server...")
+    """1. Dang ky dia chi Student Server voi Teacher Server"""
+    print("\n>>> [POST] Dang dang ky voi Teacher Server...")
     try:
         res = requests.post(
             f"{TEACHER_BASE_URL}/competition/register",
@@ -23,14 +23,14 @@ def register():
             json={"server_url": STUDENT_SERVER_URL}
         )
         data = res.json()
-        print(f"Lời nhắn: {data.get('message')}")
-        print(f"Sinh viên: {data.get('student_id')} | Server: {data.get('server_url')}")
+        print(f"Loi nhan: {data.get('message')}")
+        print(f"Sinh vien: {data.get('student_id')} | Server: {data.get('server_url')}")
     except Exception as e:
-        print(f"Lỗi kết nối: {e}")
+        print(f"Loi ket noi: {e}")
 
 def evaluate(document_received=False):
-    """2. Kích hoạt quá trình chấm điểm tự động"""
-    print(f"\n>>> [POST] Bắt đầu thi (document_received={document_received})...")
+    """2. Kich hoat qua trinh cham diem tu dong"""
+    print(f"\n>>> [POST] Bat dau thi (document_received={document_received})...")
     try:
         res = requests.post(
             f"{TEACHER_BASE_URL}/competition/evaluate",
@@ -38,57 +38,57 @@ def evaluate(document_received=False):
             json={"document_received": document_received}
         )
         data = res.json()
-        print(f"Trạng thái: {data.get('message')}")
-        print(f"Điểm số cuối cùng: {data.get('final_score')}")
+        print(f"Trang thai: {data.get('message')}")
+        print(f"Diem so cuoi cung: {data.get('final_score')}")
     except Exception as e:
-        print(f"Lỗi kết nối: {e}")
+        print(f"Loi ket noi: {e}")
 
 def check_result():
-    """3. Kiểm tra tiến độ câu hỏi và điểm số hiện tại khi đang thi"""
-    print("\n>>> [GET] Kiểm tra trạng thái hiện tại...")
+    """3. Kiem tra tien do cau hoi va diem so hien tai khi dang thi"""
+    print("\n>>> [GET] Kiem tra trang thai hien tai...")
     try:
         res = requests.get(
             f"{TEACHER_BASE_URL}/competition/result",
             headers=HEADERS
         )
         data = res.json()
-        print(f"Sinh viên: {data.get('student_id')}")
-        print(f"Trạng thái hệ thống: {data.get('status')}")
-        print(f"Đang ở câu hỏi số: {data.get('current_question')}/100") # <-- Đã sửa thành 100
-        print(f"Điểm số hiện tại: {data.get('score')}")
+        print(f"Sinh vien: {data.get('student_id')}")
+        print(f"Trang thai he thong: {data.get('status')}")
+        print(f"Dang o cau hoi so: {data.get('current_question')}/100") 
+        print(f"Diem so hien tai: {data.get('score')}")
     except Exception as e:
-        print(f"Lỗi kết nối: {e}")
+        print(f"Loi ket noi: {e}")
 
 def reset():
-    """4. Reset trạng thái thi về ban đầu nếu code gặp sự cố giữa chừng"""
-    print("\n>>> [POST] Yêu cầu reset trạng thái thi...")
+    """4. Reset trang thai thi ve ban dau neu code gap su co giua chung"""
+    print("\n>>> [POST] Yeu cau reset trang thai thi...")
     try:
         res = requests.post(
             f"{TEACHER_BASE_URL}/competition/reset",
             headers=HEADERS
         )
         data = res.json()
-        print(f"Trạng thái: {data.get('status')}")
-        print(f"Lời nhắn: {data.get('message')}")
-        print(f"Điểm số lưu lại trước đó: {data.get('score')}")
+        print(f"Trang thai: {data.get('status')}")
+        print(f"Loi nhan: {data.get('message')}")
+        print(f"Diem so luu lai truoc do: {data.get('score')}")
     except Exception as e:
-        print(f"Lỗi kết nối: {e}")
+        print(f"Loi ket noi: {e}")
 
 # ==========================================
-# KHU VỰC CHẠY THỰC TẾ
+# KHU VUC CHAY THUC TE
 # ==========================================
 if __name__ == "__main__":
-    # Bước 1: Đăng ký IP máy mình với giảng viên
+    # Buoc 1: Dang ky IP may minh voi giang vien
     register()
     
-    # Bước 2: Nộp bài (Chỉ được nộp tối đa 5 lần)
+    # Buoc 2: Nop bai (Chi duoc nop toi da 5 lan)
     
-    # --- Lần nộp ĐẦU TIÊN (Để máy chủ gửi tài liệu về cho bạn embed) ---
+    # --- Lan nop DAU TIEN (De may chu gui tai lieu ve cho ban embed) ---
     # evaluate(document_received=False) 
     
-    # --- Lần nộp THỨ 2, 3, 4, 5 (Đã lưu VectorDB local, không cần chờ gửi lại tài liệu) ---
+    # --- Lan nop THU 2, 3, 4, 5 (Da luu VectorDB local, khong can cho gui lai tai lieu) ---
     # evaluate(document_received=True)
     
-    # Các hàm bổ trợ (Bỏ comment để dùng khi cần):
+    # Cac ham bo tro (Bo comment de dung khi can):
     # check_result()
     # reset()
