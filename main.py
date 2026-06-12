@@ -73,12 +73,14 @@ async def upload_document(request: Request):
 
 @app.post("/ask", response_model=AskResponse)
 async def ask_question(req: AskRequest):
-    """Nhan cau hoi, truy xuat ngu canh va tra loi A/B/C/D"""
+    """Nhận câu hỏi, truy xuất ngữ cảnh và trả lời A/B/C/D"""
     retrieved_context, retrieved_sources = retrieve_context(req.question, top_k=3)
     
+    # ĐÃ SỬA: Dùng tiếng Việt có dấu để LLM hiểu chỉ dẫn chính xác hơn
     system_prompt = (
-        "Ban la tro ly giai trac nghiem. Dua vao Context, tra loi cau hoi. "
-        "CHI TRA VE DUNG 1 KY TU: A, B, C, hoac D. Khong giai thich."
+        "Bạn là trợ lý ảo chuyên giải trắc nghiệm. Dựa vào nội dung Context được cung cấp, "
+        "hãy trả lời câu hỏi của người dùng. "
+        "CHỈ TRẢ VỀ ĐÚNG MỘT KÝ TỰ là đáp án: A, B, C, hoặc D. Tuyệt đối không giải thích thêm."
     )
     user_prompt = f"Context:\n{retrieved_context}\n\nQuestion:\n{req.question}"
     
