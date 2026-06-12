@@ -7,7 +7,7 @@ from langchain.docstore.document import Document
 # ==========================================
 # CẤU HÌNH OFFLINE EMBEDDING
 # ==========================================
-MODEL_PATH = "./models/all-MiniLM-L6-v2" 
+MODEL_PATH = "./models/vietnamese-sbert-base"  # <-- ĐÃ SỬA: Đường dẫn đến model embedding đã tải về máy
 FAISS_DB_DIR = "./faiss_index"  # <-- ĐÃ SỬA: Khai báo thư mục lưu VectorDB xuống ổ cứng
 
 print("Đang load model embedding offline...")

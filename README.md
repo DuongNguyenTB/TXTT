@@ -4,6 +4,8 @@ Dự án xây dựng hệ thống cung cấp API Endpoint để truy vấn tài 
 
 ##  Cấu trúc thư mục dự án
 
+./models/all-MiniLM-L6-v2
+
 ```text
 ├── models/
 │   └── all-MiniLM-L6-v2/       # Thư mục lưu model embedding chạy offline (tải trước khi thi)
