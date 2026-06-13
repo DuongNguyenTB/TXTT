@@ -1,0 +1,156 @@
+Giải thích chi tiết phần kết nối đến server, request và response trong code client_exam.py
+
+1. Cấu hình kết nối
+
+- TEACHER_BASE_URL = "http://192.168.50.218:8000/api/v1"
+  + Đây là địa chỉ gốc của Teacher Server.
+  + Mọi endpoint mà client gửi đến đều nối vào chuỗi này.
+  + Ví dụ: /competition/register, /competition/evaluate,
+    /competition/result, /competition/reset.
+
+- STUDENT_SERVER_URL = "http://192.168.1.15:5000"
+  + Đây là địa chỉ máy của sinh viên đang chạy Student Server.
+  + Teacher Server cần biết địa chỉ này để nhận diện và có thể gọi lại hoặc gửi dữ liệu.
+
+- HEADERS = {"X-Student-ID": STUDENT_ID, "Content-Type": "application/json"}
+  + X-Student-ID: mã sinh viên được gửi như một header tùy chỉnh.
+    Teacher Server dùng để biết yêu cầu đang đến từ ai.
+  + Content-Type: application/json: cho server biết phần body gửi lên được mã hoá dưới dạng JSON.
+
+2. Hàm register(): đăng ký máy thi với Teacher Server
+
+- Chức năng:
+  + Gửi một POST request đến Teacher Server tại endpoint /competition/register.
+  + Thông báo cho Teacher Server biết máy sinh viên đang chạy ở STUDENT_SERVER_URL.
+
+- Request trong code:
+  + requests.post(
+      f"{TEACHER_BASE_URL}/competition/register",
+      headers=HEADERS,
+      json={"server_url": STUDENT_SERVER_URL}
+    )
+
+  + Phương thức HTTP: POST
+  + URL đầy đủ: http://192.168.50.218:8000/api/v1/competition/register
+  + Headers: thông tin mã sinh viên và kiểu dữ liệu JSON
+  + Body JSON: {"server_url": "http://192.168.1.15:5000"}
+
+- Ý nghĩa:
+  + Teacher Server nhận biết đây là một sinh viên đăng ký.
+  + Server có thể lưu lại địa chỉ máy thi và trả về dữ liệu xác nhận.
+
+- Response xử lý:
+  + data = res.json(): parse response body thành dict Python.
+  + print(f"Loi nhan: {data.get('message')}")
+  + print(f"Sinh vien: {data.get('student_id')} | Server: {data.get('server_url')}")
+
+  + Lấy thông điệp trả về từ server qua key message.
+  + Lấy mã sinh viên và URL server trả lại qua các key student_id và server_url.
+
+- Ngoại lệ:
+  + Nếu không kết nối được hoặc server trả về kết quả không hợp lệ,
+    code vào except và in lỗi kết nối.
+
+3. Hàm evaluate(document_received=False): bắt đầu/tiếp tục thi
+
+- Chức năng:
+  + Gửi POST request đến endpoint /competition/evaluate.
+  + Thông báo xem đã nhận tài liệu trước đó chưa.
+
+- Request trong code:
+  + requests.post(
+      f"{TEACHER_BASE_URL}/competition/evaluate",
+      headers=HEADERS,
+      json={"document_received": document_received}
+    )
+
+  + Phương thức HTTP: POST
+  + Body JSON: {"document_received": False} hoặc True
+
+- Ý nghĩa của document_received:
+  + False: lần nộp đầu tiên, Teacher Server sẽ gửi tài liệu hoặc làm bước khai báo ban đầu.
+  + True: những lần tiếp theo, đã có dữ liệu local nên chỉ cần tiếp tục chấm/quá trình thi.
+
+- Response xử lý:
+  + data = res.json()
+  + print(f"Trang thai: {data.get('message')}")
+  + print(f"Diem so cuoi cung: {data.get('final_score')}")
+
+  + message: thông báo trạng thái từ server.
+  + final_score: điểm cuối cùng server trả về.
+
+- Ngoại lệ:
+  + Nếu request không thành công hoặc gặp lỗi kết nối,
+    code sẽ in ra lỗi trong except.
+
+4. Hàm check_result(): kiểm tra tiến độ thi
+
+- Chức năng:
+  + Gửi GET request đến endpoint /competition/result.
+  + Lấy thông tin trạng thái thi hiện tại.
+
+- Request trong code:
+  + requests.get(
+      f"{TEACHER_BASE_URL}/competition/result",
+      headers=HEADERS
+    )
+
+  + Phương thức HTTP: GET
+  + Không có body vì GET chỉ lấy dữ liệu.
+
+- Response xử lý:
+  + data = res.json()
+  + print(f"Sinh vien: {data.get('student_id')}")
+  + print(f"Trang thai he thong: {data.get('status')}")
+  + print(f"Dang o cau hoi so: {data.get('current_question')}/100")
+  + print(f"Diem so hien tai: {data.get('score')}")
+
+  + student_id: mã sinh viên.
+  + status: trạng thái thi (ví dụ đang thi, đã hoàn thành, chờ...)
+  + current_question: câu hỏi hiện tại.
+  + score: điểm hiện tại.
+
+5. Hàm reset(): yêu cầu reset trạng thái thi
+
+- Chức năng:
+  + Gửi POST request đến endpoint /competition/reset.
+  + Yêu cầu Teacher Server đưa trạng thái thi về ban đầu.
+
+- Request trong code:
+  + requests.post(
+      f"{TEACHER_BASE_URL}/competition/reset",
+      headers=HEADERS
+    )
+
+  + Phương thức HTTP: POST
+  + Không gửi body JSON cụ thể.
+
+- Response xử lý:
+  + data = res.json()
+  + print(f"Trang thai: {data.get('status')}")
+  + print(f"Loi nhan: {data.get('message')}")
+  + print(f"Diem so luu lai truoc do: {data.get('score')}")
+
+  + status: trạng thái trả về sau khi reset.
+  + message: thông điệp server.
+  + score: điểm trước khi reset.
+
+6. Cách hoạt động tổng thể
+
+- Đây là client dùng để giao tiếp với Teacher Server.
+- Mỗi hàm gọi một endpoint khác nhau.
+- Dùng requests để gửi HTTP request.
+- Dữ liệu gửi lên được mã hoá JSON.
+- Response nhận về cũng được parse JSON và in ra bằng Python.
+- Nếu server không trả đúng JSON hoặc không kết nối được, hàm sẽ bắt exception và in lỗi.
+
+7. Điểm cần lưu ý
+
+- `requests.post(..., json=...)` tự động chuyển dict Python thành JSON string trong body và đặt header Content-Type đúng.
+- `res.json()` giả định server trả về JSON. Nếu server trả về HTML hoặc text, sẽ gây lỗi.
+- `HEADERS` mang mã sinh viên, nên Teacher Server dùng để xác thực/căn cứ.
+- `STUDENT_SERVER_URL` là URL của máy sinh viên, không phải URL của Teacher Server.
+
+Kết luận:
+
+Trong `client_exam.py`, phần kết nối đến server là việc gửi các request HTTP tới các endpoint của Teacher Server. Code dùng `requests.post` và `requests.get`, chuyển dữ liệu bằng JSON qua `json={...}` và đọc response bằng `res.json()`. Các hàm chính là `register()`, `evaluate()`, `check_result()`, `reset()`.
