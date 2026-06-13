@@ -1,3 +1,44 @@
+##  Cấu hình Biến môi trường (.env)
+
+Hệ thống sử dụng các biến môi trường để dễ dàng thay đổi cấu hình mà không cần can thiệp trực tiếp vào mã nguồn. 
+
+### Bước 1: Tạo file cấu hình
+Tại thư mục gốc của dự án (cùng cấp với file `main.py`), hãy tạo một file mới có tên chính xác là `.env`.
+
+### Bước 2: Khai báo các thông số
+Copy toàn bộ nội dung dưới đây và dán vào file `.env` vừa tạo. Hãy thay đổi các giá trị `STUDENT_ID`, `TEACHER_SERVER_IP`, và `STUDENT_SERVER_URL` cho khớp với mạng LAN phòng thi của bạn:
+
+```env
+# ==========================================
+# THÔNG TIN SINH VIÊN VÀ MẠNG LAN
+# ==========================================
+STUDENT_ID=B21DCCNxxx
+TEACHER_SERVER_IP=192.168.50.218
+STUDENT_SERVER_URL=[http://192.168.1.15:5000](http://192.168.1.15:5000)
+
+# ==========================================
+# CẤU HÌNH LLM (PROXY)
+# ==========================================
+# Tên model LLM do Teacher Server cung cấp (VD: gpt-4o-mini hoặc Qwen/...)
+LLM_MODEL=gpt-4o-mini
+
+# ==========================================
+# CẤU HÌNH RAG & VECTOR DB
+# ==========================================
+EMBEDDING_MODEL_PATH=./models/vietnamese-sbert-base
+FAISS_INDEX_DIR=./faiss_index
+RAG_CHUNK_SIZE=500
+RAG_CHUNK_OVERLAP=50
+RETRIEVAL_TOP_K=3
+MAX_CONTEXT_CHARS=4500
+
+# ==========================================
+# CẤU HÌNH CLIENT THI CỬ (client_exam.py)
+# ==========================================
+MAX_SUBMISSIONS=5
+CLIENT_TIMEOUT=45.0
+
+
 ./models/all-MiniLM-L6-v2
 
 # Hệ thống RAG Offline - PTIT Final Competition
